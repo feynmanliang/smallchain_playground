@@ -6,8 +6,13 @@ from langgraph.graph import START, StateGraph
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt.tool_node import BaseTool, ToolNode, tools_condition
 from pydantic import BaseModel
+from humanlayer import HumanLayer
 
 memory = MemorySaver()
+
+hl = HumanLayer(
+    verbose=True,
+)
 
 
 class State(TypedDict):
@@ -26,6 +31,7 @@ class AddTool(BaseTool):
     description: str = "Add two numbers together"
     args_schema: Type[BaseModel] = AddToolInput
 
+    @hl.require_approval()
     def _run(self, a: int, b: int) -> int:
         return a + b
 
@@ -66,7 +72,8 @@ graph = graph_builder.compile(
 with open("graph.png", "wb") as f:
     f.write(graph.get_graph().draw_mermaid_png())
 
-user_input = "Add (2 + 5) and (3 + 4), then add the results"
+# user_input = "Add (2 + 5) and (3 + 4), then add the results"
+user_input = "Add (2 + 5)"
 config = {"configurable": {"thread_id": "1"}}
 # The config is the **second positional argument** to stream() or invoke()!
 events = graph.stream(
@@ -76,31 +83,22 @@ for event in events:
     if "messages" in event:
         event["messages"][-1].pretty_print()
 
+while True:
+    snapshot = graph.get_state(config)
+    print(snapshot.next)
+    if not snapshot.next:
+        break
 
-print("*"*5 + "PAUSED FOR HUMAN INPUT" + "*"*5)
+    # existing_message = snapshot.values["messages"][-1]
+    # existing_message.tool_calls
 
-snapshot = graph.get_state(config)
-print(snapshot.next)
+    # `None` will append nothing new to the current state, letting it resume as if it had never been interrupted
+    events = graph.stream(None, config, stream_mode="values")
+    for event in events:
+        if "messages" in event:
+            event["messages"][-1].pretty_print()
 
-existing_message = snapshot.values["messages"][-1]
-existing_message.tool_calls
+app = FastAPI()
 
-# `None` will append nothing new to the current state, letting it resume as if it had never been interrupted
-events = graph.stream(None, config, stream_mode="values")
-for event in events:
-    if "messages" in event:
-        event["messages"][-1].pretty_print()
-
-print("*"*5 + "PAUSED FOR HUMAN INPUT" + "*"*5)
-
-snapshot = graph.get_state(config)
-print(snapshot.next)
-
-existing_message = snapshot.values["messages"][-1]
-existing_message.tool_calls
-
-# `None` will append nothing new to the current state, letting it resume as if it had never been interrupted
-events = graph.stream(None, config, stream_mode="values")
-for event in events:
-    if "messages" in event:
-        event["messages"][-1].pretty_print()
+@app.post("/run_workflow")
+async def run_workflow():
