@@ -1,0 +1,15 @@
+[project]
+name = "haystack"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "farm-haystack>=1.26.4",
+    "openai>=1.58.1",
+    "setuptools>=75.6.0",
+]
+
+[tool.pyright]
+venv = ".venv"
+venvPath = "."
