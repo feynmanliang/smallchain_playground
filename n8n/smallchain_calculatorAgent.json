@@ -1,0 +1,123 @@
+{
+  "name": "smallchain_calculatorAgent",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "c055762a-8fe7-4141-a639-df2372f30060",
+      "name": "Execute Workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "position": [
+        40,
+        340
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Help me calculate {{ $json.query }}",
+        "options": {
+          "systemMessage": "You are a skilled calculator operator"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        440,
+        340
+      ],
+      "id": "19f89024-52e1-46c0-9388-5082c73441b4",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1,
+      "position": [
+        280,
+        540
+      ],
+      "id": "0646ba8c-04b1-41b5-a32e-235728ec6332",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "1FnPOjwtOYtLuBEk",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "name": "add",
+        "description": "add two numbers",
+        "jsCode": "return query.x + query.y",
+        "specifyInputSchema": true,
+        "jsonSchemaExample": "{\n\t\"x\": 1, \"y\": 1\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.1,
+      "position": [
+        600,
+        560
+      ],
+      "id": "bde2e046-5fb2-4300-88b7-e6b00fbc65f6",
+      "name": "Code Tool"
+    }
+  ],
+  "pinData": {
+    "Execute Workflow Trigger": [
+      {
+        "json": {
+          "query": "2 + 5"
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Execute Workflow Trigger": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "6e8948a2-7bc0-464f-bcbb-e478501db9e9",
+  "meta": {
+    "templateId": "VMiAxXa3lCAizGB5f7dVZQSFfg3FtHkdTKvLuupqBls=",
+    "instanceId": "df76e5ccc4c417cc3db6bb95a531a62737cc04343987a49004dfc77cc7092785"
+  },
+  "id": "r9c82TZN7s46myy9",
+  "tags": []
+}

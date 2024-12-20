@@ -1,0 +1,117 @@
+{
+  "name": "smallchain_project_manager",
+  "nodes": [
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "1e76c5db-f31b-4453-86b9-5c1507900940",
+      "name": "When chat message received",
+      "webhookId": "8dc67c95-02e9-4b1d-bc95-4c65f289fe2e"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        220,
+        0
+      ],
+      "id": "628504e4-4c3b-47c3-875c-6d402eb60573",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1,
+      "position": [
+        160,
+        220
+      ],
+      "id": "a56e5660-13c9-436a-9039-83a5c50b6e10",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "1FnPOjwtOYtLuBEk",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "name": "calculatorAgent",
+        "description": "a skilled calculator operator that can perform various arithmetic operations",
+        "workflowId": {
+          "__rl": true,
+          "value": "r9c82TZN7s46myy9",
+          "mode": "list",
+          "cachedResultName": "My Sub-Workflow 1"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        480,
+        220
+      ],
+      "id": "a0a105a3-99c8-4390-bd4f-db4da5b4d3c0",
+      "name": "Call n8n Workflow Tool"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When chat message received": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call n8n Workflow Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "876ab3f0-5351-4115-871b-e49569b5dca0",
+  "meta": {
+    "instanceId": "df76e5ccc4c417cc3db6bb95a531a62737cc04343987a49004dfc77cc7092785"
+  },
+  "id": "jhPlrL0Z5ufuUZPo",
+  "tags": []
+}
