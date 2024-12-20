@@ -5,7 +5,7 @@ from typing import Any
 
 from langgraph.errors import NodeInterrupt
 import numexpr
-from humanlayer import AsyncHumanLayer
+from humanlayer import HumanLayer
 from langchain_core.tools import BaseTool, tool
 
 
@@ -85,8 +85,7 @@ def list_linear_projects_func(team_id: str) -> Any:
     return []
 
 
-hl = AsyncHumanLayer()
-
+hl = HumanLayer()
 
 async def add_to_linear_func(
     title: str,
