@@ -6,7 +6,7 @@ from langchain_community.utilities import OpenWeatherMapAPIWrapper
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig, RunnableLambda, RunnableSerializable
-from langgraph.checkpoint.memory import MemorySaver
+from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.graph import END, MessagesState, StateGraph
 from langgraph.managed import RemainingSteps
 from langgraph.prebuilt import ToolNode
@@ -156,4 +156,4 @@ def pending_tool_calls(state: AgentState) -> Literal["tools", "done"]:
 
 agent.add_conditional_edges("model", pending_tool_calls, {"tools": "tools", "done": END})
 
-research_assistant = agent.compile(checkpointer=MemorySaver())
+research_assistant = agent.compile(checkpointer=AsyncSqliteSaver.from_conn_string("checkpoints.sqlite"))

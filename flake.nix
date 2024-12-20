@@ -17,6 +17,7 @@
             python312
             python312Packages.pip
             uv
+            sqlite
           ];
 
           shellHook = ''
