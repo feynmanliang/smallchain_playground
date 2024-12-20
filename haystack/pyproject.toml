@@ -13,3 +13,8 @@ dependencies = [
 [tool.pyright]
 venv = ".venv"
 venvPath = "."
+
+[dependency-groups]
+dev = [
+    "ruff>=0.8.4",
+]

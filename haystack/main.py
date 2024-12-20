@@ -1,22 +1,23 @@
 import os
+from typing import Any, Dict, List, Tuple
 
 from haystack import BaseComponent
 from haystack.agents import Agent, Tool
 from haystack.agents.base import ToolsManager
 from haystack.nodes import PromptNode
-from typing import Dict, List, Any, Tuple
+
 
 class AdderNode(BaseComponent):
     outgoing_edges = 1
     
-    def run(self, query: Dict[str, Any] = None, **kwargs):
+    def run(self, query: Dict[str, Any] = None):
         """
         Run the adder node with input from query dictionary
         
         :param query: Dictionary containing 'num1' and 'num2'
         :return: Tuple of (output dict, output edge name)
         """
-        print(query)
+        print(f'Received query in adderNode: {query}')
         if not query or 'num1' not in query or 'num2' not in query:
             raise ValueError("Query must contain 'num1' and 'num2' parameters")
             
