@@ -1,15 +1,17 @@
 from datetime import datetime
+import json
 from typing import Literal
 
 from langchain_community.tools import DuckDuckGoSearchResults, OpenWeatherMapQueryRun
 from langchain_community.utilities import OpenWeatherMapAPIWrapper
 from langchain_core.language_models.chat_models import BaseChatModel
-from langchain_core.messages import AIMessage, SystemMessage
+from langchain_core.messages import AIMessage, SystemMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig, RunnableLambda, RunnableSerializable
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, MessagesState, StateGraph
 from langgraph.managed import RemainingSteps
 from langgraph.prebuilt import ToolNode
+from langgraph.utils.runnable import RunnableCallable
 
 from agents.llama_guard import LlamaGuard, LlamaGuardOutput, SafetyAssessment
 from agents.tools import (
@@ -103,44 +105,78 @@ async def acall_model(state: AgentState, config: RunnableConfig) -> AgentState:
     return {"messages": [response]}
 
 
-async def llama_guard_input(state: AgentState, config: RunnableConfig) -> AgentState:
-    llama_guard = LlamaGuard()
-    safety_output = await llama_guard.ainvoke("User", state["messages"])
-    return {"safety": safety_output}
-
-
-async def block_unsafe_content(state: AgentState, config: RunnableConfig) -> AgentState:
-    safety: LlamaGuardOutput = state["safety"]
-    return {"messages": [format_safety_message(safety)]}
-
-
 # Define the graph
+
+
+class HumanLayerNode:
+    """A node that runs the tools requested in the last AIMessage."""
+
+    def __init__(self, tools_requiring_human_review: list[str]) -> None:
+        self.tools_requiring_human_review = tools_requiring_human_review
+
+    def __call__(self, inputs: dict):
+        message = inputs["messages"][-1]
+        if any(
+            tool_call.name in self.tools_requiring_human_review for tool_call in message.tool_calls
+        ):
+            pass
+
+
+class HumanLayerWaitNode:
+    def __call__(self, inputs: dict):
+        pass
+
+
+class IncrementalToolNode:
+    """A node that runs the tools requested in the last AIMessage."""
+
+    def __init__(self, tools: list) -> None:
+        self.tools_by_name = {tool.name: tool for tool in tools}
+
+    def __call__(self, inputs: dict):
+        if messages := inputs.get("messages", []):
+            pass
+        else:
+            raise ValueError("No message found in input")
+
+        index = -1
+        already_answered_tool_calls = []
+        while not isinstance(messages[index], AIMessage):
+            if isinstance(messages[index], ToolMessage):
+                already_answered_tool_calls.append(messages[index].tool_call_id)
+            else:
+                raise ValueError(
+                    "found non tool message while rewinding to find initial list of tool calls"
+                )
+            index -= 1
+        message = messages[index]
+
+        outputs = []
+        for tool_call in message.tool_calls:
+            if tool_call.id in already_answered_tool_calls:
+                continue
+            tool_result = self.tools_by_name[tool_call["name"]].invoke(tool_call["args"])
+            outputs.append(
+                ToolMessage(
+                    content=json.dumps(tool_result),
+                    name=tool_call["name"],
+                    tool_call_id=tool_call["id"],
+                )
+            )
+        return {"messages": outputs}
+
+
 agent = StateGraph(AgentState)
 agent.add_node("model", acall_model)
+agent.set_entry_point("model")
+agent.add_node("start_human_review", HumanLayerNode(["add_to_linear"]))
+agent.add_node("await_human_response", HumanLayerWaitNode())
+agent.add_edge("model", "start_human_review")
+agent.add_edge("start_human_review", "await_human_response")
+
 agent.add_node("tools", ToolNode(tools))
-agent.add_node("guard_input", llama_guard_input)
-agent.add_node("block_unsafe_content", block_unsafe_content)
-agent.set_entry_point("guard_input")
+agent.add_edge("await_human_response", "tools")
 
-
-# Check for unsafe input and block further processing if found
-def check_safety(state: AgentState) -> Literal["unsafe", "safe"]:
-    safety: LlamaGuardOutput = state["safety"]
-    match safety.safety_assessment:
-        case SafetyAssessment.UNSAFE:
-            return "unsafe"
-        case _:
-            return "safe"
-
-
-agent.add_conditional_edges(
-    "guard_input", check_safety, {"unsafe": "block_unsafe_content", "safe": "model"}
-)
-
-# Always END after blocking unsafe content
-agent.add_edge("block_unsafe_content", END)
-
-# Always run "model" after "tools"
 agent.add_edge("tools", "model")
 
 
