@@ -1,13 +1,15 @@
-from datetime import datetime
 import json
-from typing import Literal
+from datetime import datetime
+from typing import Annotated, Literal
 
+from humanlayer import FunctionCall, FunctionCallSpec, HumanLayer
 from langchain_community.tools import DuckDuckGoSearchResults, OpenWeatherMapQueryRun
 from langchain_community.utilities import OpenWeatherMapAPIWrapper
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage, SystemMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig, RunnableLambda, RunnableSerializable
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
+from langgraph.errors import NodeInterrupt
 from langgraph.graph import END, MessagesState, StateGraph
 from langgraph.managed import RemainingSteps
 from langgraph.prebuilt import ToolNode
@@ -32,6 +34,7 @@ class AgentState(MessagesState, total=False):
 
     safety: LlamaGuardOutput
     remaining_steps: RemainingSteps
+    pending_tool_calls: list[str]
 
 
 tools = [
@@ -116,18 +119,46 @@ class HumanLayerNode:
 
     def __call__(self, inputs: dict):
         message = inputs["messages"][-1]
-        if any(
-            tool_call["name"] in self.tools_requiring_human_review
-            for tool_call in message.tool_calls
-        ):
-            print("HumanLayerNode")
-            return {"messages": []}
+        tools_requiring_human_review = [
+            t for t in message.tool_calls if t["name"] in self.tools_requiring_human_review
+        ]
+        new_pending_tool_calls = []
+        if any(tools_requiring_human_review):
+            hl = HumanLayer()
+            for tool_call in tools_requiring_human_review:
+                hl.create_function_call(
+                    call_id=tool_call["id"],
+                    spec=FunctionCallSpec(
+                        fn=tool_call["name"],
+                        kwargs=tool_call["args"],
+                    ),
+                )
+                new_pending_tool_calls.append(tool_call["id"])
+        return {"messages": [], "pending_tool_calls": new_pending_tool_calls}
 
 
 class HumanLayerWaitNode:
     def __call__(self, inputs: dict):
-        print("HumanLayerWaitNode")
-        return {"messages": []}
+        pending_tool_calls = inputs.get("pending_tool_calls", [])
+        if not pending_tool_calls:
+            return {"messages": []}
+        new_tool_call_messages = []
+        hl = HumanLayer()
+        for tool_call_id in pending_tool_calls:
+            call = hl.get_function_call(tool_call_id)
+            if call.status is None or call.status.approved is None:
+                raise NodeInterrupt(
+                    f"Function call {tool_call_id} still awaiting human review - {call.spec.fn}({json.dumps(call.spec.kwargs, indent=2)})"
+                )
+            elif call.status.approved is False:
+                new_tool_call_messages.append(
+                    ToolMessage(
+                        content=f"Function call {tool_call_id} was rejected by human review: {call.status.comment}",
+                        name=call.spec.fn,
+                        tool_call_id=tool_call_id,
+                    )
+                )
+        return {"messages": new_tool_call_messages}
 
 
 class IncrementalToolNode:

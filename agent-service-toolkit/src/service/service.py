@@ -1,12 +1,12 @@
 import json
 import logging
-import openai
 import warnings
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from typing import Annotated, Any
 from uuid import UUID, uuid4
 
+import openai
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, status
 from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -118,7 +118,7 @@ async def invoke(user_input: UserInput, agent_id: str = DEFAULT_AGENT) -> ChatMe
 
 @router.post("/{agent_id}/resume")
 @router.post("/resume")
-async def invoke(resume_input: ResumeInput, agent_id: str = DEFAULT_AGENT) -> ChatMessage:
+async def resume(resume_input: ResumeInput, agent_id: str = DEFAULT_AGENT) -> ChatMessage:
     """
     Resume an agent without additional user input.
 
@@ -128,8 +128,16 @@ async def invoke(resume_input: ResumeInput, agent_id: str = DEFAULT_AGENT) -> Ch
     """
     agent: CompiledStateGraph = get_agent(agent_id)
     config = RunnableConfig(
-        configurable={"thread_id": resume_input.thread_id, "model": resume_input.model},
+        configurable={
+            "thread_id": resume_input.thread_id,
+            "model": resume_input.model,
+        },
     )
+    
+
+    state_snapshot = await agent.aget_state(config)
+    print(state_snapshot)
+
     try:
         response = await agent.ainvoke(
             **{
@@ -141,7 +149,10 @@ async def invoke(resume_input: ResumeInput, agent_id: str = DEFAULT_AGENT) -> Ch
         return output
     except openai.BadRequestError as e:
         # TODO: hack around a failed tool call by appending a bad tool result
-        logger.warn("Failed to resume, appending a bad tool result")
+        logger.warn("Failed to resume, appending a bad tool result %s", e)
+        import traceback
+
+        traceback.print_exc()
         tool_call_id = e.message.split("tool_call_ids did not have response messages: ")[1].split(
             '"'
         )[0]
