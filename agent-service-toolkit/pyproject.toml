@@ -26,7 +26,7 @@ dependencies = [
     "langchain-groq ~=0.2.1",
     "langchain-aws ~=0.2.7",
     "langgraph ~=0.2.53",
-    "langgraph-checkpoint-sqlite ~=2.0.1",
+    "langgraph-checkpoint-sqlite~=2.0.1",
     "langsmith ~=0.1.145",
     "numexpr ~=2.10.1",
     "pyarrow >=18.1.0", # python 3.13 support
@@ -60,6 +60,10 @@ client = [
     "python-dotenv ~=1.0.1",
     "streamlit~=1.40.1",
 ]
+
+[tool.pyright]
+venvPath = "."
+venv = ".venv"
 
 [tool.ruff]
 line-length = 100

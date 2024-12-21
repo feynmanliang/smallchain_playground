@@ -1,7 +1,9 @@
+import asyncio
 import math
 import re
 from typing import Any
 
+from langgraph.errors import NodeInterrupt
 import numexpr
 from humanlayer import HumanLayer
 from langchain_core.tools import BaseTool, tool
@@ -85,8 +87,7 @@ def list_linear_projects_func(team_id: str) -> Any:
 
 hl = HumanLayer()
 
-
-def add_to_linear_func(
+async def add_to_linear_func(
     title: str,
     description: str,
     team_id: str,
@@ -96,6 +97,9 @@ def add_to_linear_func(
     """
     Add a task to linear.
     """
+    print("Adding to linear")
+    #raise NodeInterrupt("Please wait for a moment while I add this to linear.")
+    print("Added to linear")
     if team_id not in ["team-sales", "team-operations"]:
         return "unknown team"
     if owner_id not in [

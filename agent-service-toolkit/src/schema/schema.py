@@ -56,6 +56,21 @@ class UserInput(BaseModel):
         examples=["847c6285-8fc9-4560-a83f-4e6285809254"],
     )
 
+class ResumeInput(BaseModel):
+    """Basic resume input for the agent."""
+
+    model: SerializeAsAny[AllModelEnum] | None = Field(
+        title="Model",
+        description="LLM Model to use for the agent.",
+        default=OpenAIModelName.GPT_4O_MINI,
+        examples=[OpenAIModelName.GPT_4O_MINI, AnthropicModelName.HAIKU_35],
+    )
+    thread_id: str | None = Field(
+        description="Thread ID to persist and continue a multi-turn conversation.",
+        default=None,
+        examples=["847c6285-8fc9-4560-a83f-4e6285809254"],
+    )
+
 
 class StreamInput(UserInput):
     """User input for streaming the agent's response."""

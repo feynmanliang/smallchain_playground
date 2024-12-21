@@ -1,5 +1,6 @@
 import json
 import logging
+import openai
 import warnings
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
@@ -10,7 +11,7 @@ from fastapi import APIRouter, Depends, FastAPI, HTTPException, status
 from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from langchain_core._api import LangChainBetaWarning
-from langchain_core.messages import AnyMessage, HumanMessage
+from langchain_core.messages import AnyMessage, HumanMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.graph.state import CompiledStateGraph
@@ -24,6 +25,7 @@ from schema import (
     ChatMessage,
     Feedback,
     FeedbackResponse,
+    ResumeInput,
     ServiceMetadata,
     StreamInput,
     UserInput,
@@ -110,6 +112,50 @@ async def invoke(user_input: UserInput, agent_id: str = DEFAULT_AGENT) -> ChatMe
         output.run_id = str(run_id)
         return output
     except Exception as e:
+        logger.error(f"An exception occurred: {e}")
+        raise HTTPException(status_code=500, detail="Unexpected error")
+
+@router.post("/{agent_id}/resume")
+@router.post("/resume")
+async def invoke(resume_input: ResumeInput, agent_id: str = DEFAULT_AGENT) -> ChatMessage:
+    """
+    Resume an agent without additional user input.
+
+    If agent_id is not provided, the default agent will be used.
+    Use thread_id to persist and continue a multi-turn conversation. run_id kwarg
+    is also attached to messages for recording feedback.
+    """
+    agent: CompiledStateGraph = get_agent(agent_id)
+    config = RunnableConfig(
+        configurable={"thread_id": resume_input.thread_id, "model": resume_input.model},
+    )
+    try:
+        response = await agent.ainvoke(**{
+            "input": {"messages": []},
+            "config": config,
+        })
+        output = langchain_to_chat_message(response["messages"][-1])
+        return output
+    except openai.BadRequestError as e:
+        # TODO: hack around a failed tool call by appending a bad tool result
+        logger.warn("Failed to resume, appending a bad tool result")
+        tool_call_id = e.message.split("tool_call_ids did not have response messages: ")[1].split("\"")[0]
+        #logger.warn(await agent.aget_state(config))
+        response = await agent.ainvoke(**{
+            "input": {"messages": [ToolMessage(
+                content='Tool call failed, please try again',
+                id=uuid4(),
+                tool_call_id=tool_call_id,
+            )]},
+            "config": config,
+        })
+        output = langchain_to_chat_message(response["messages"][-1])
+        return output
+
+        #invoke(resume_input, agent_id)
+        raise HTTPException(status_code=500, detail="Unexpected error")
+    except Exception as e:
+        import traceback; traceback.print_exc()
         logger.error(f"An exception occurred: {e}")
         raise HTTPException(status_code=500, detail="Unexpected error")
 
