@@ -117,14 +117,17 @@ class HumanLayerNode:
     def __call__(self, inputs: dict):
         message = inputs["messages"][-1]
         if any(
-            tool_call.name in self.tools_requiring_human_review for tool_call in message.tool_calls
+            tool_call["name"] in self.tools_requiring_human_review
+            for tool_call in message.tool_calls
         ):
-            pass
+            print("HumanLayerNode")
+            return {"messages": []}
 
 
 class HumanLayerWaitNode:
     def __call__(self, inputs: dict):
-        pass
+        print("HumanLayerWaitNode")
+        return {"messages": []}
 
 
 class IncrementalToolNode:
@@ -169,9 +172,10 @@ class IncrementalToolNode:
 agent = StateGraph(AgentState)
 agent.add_node("model", acall_model)
 agent.set_entry_point("model")
+
+
 agent.add_node("start_human_review", HumanLayerNode(["add_to_linear"]))
 agent.add_node("await_human_response", HumanLayerWaitNode())
-agent.add_edge("model", "start_human_review")
 agent.add_edge("start_human_review", "await_human_response")
 
 agent.add_node("tools", ToolNode(tools))
@@ -190,6 +194,10 @@ def pending_tool_calls(state: AgentState) -> Literal["tools", "done"]:
     return "done"
 
 
-agent.add_conditional_edges("model", pending_tool_calls, {"tools": "tools", "done": END})
+agent.add_conditional_edges(
+    "model", pending_tool_calls, {"tools": "start_human_review", "done": END}
+)
 
-research_assistant = agent.compile(checkpointer=AsyncSqliteSaver.from_conn_string("checkpoints.sqlite"))
+research_assistant = agent.compile(
+    checkpointer=AsyncSqliteSaver.from_conn_string("checkpoints.sqlite")
+)

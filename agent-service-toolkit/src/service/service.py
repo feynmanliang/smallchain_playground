@@ -115,6 +115,7 @@ async def invoke(user_input: UserInput, agent_id: str = DEFAULT_AGENT) -> ChatMe
         logger.error(f"An exception occurred: {e}")
         raise HTTPException(status_code=500, detail="Unexpected error")
 
+
 @router.post("/{agent_id}/resume")
 @router.post("/resume")
 async def invoke(resume_input: ResumeInput, agent_id: str = DEFAULT_AGENT) -> ChatMessage:
@@ -130,32 +131,44 @@ async def invoke(resume_input: ResumeInput, agent_id: str = DEFAULT_AGENT) -> Ch
         configurable={"thread_id": resume_input.thread_id, "model": resume_input.model},
     )
     try:
-        response = await agent.ainvoke(**{
-            "input": {"messages": []},
-            "config": config,
-        })
+        response = await agent.ainvoke(
+            **{
+                "input": {"messages": []},
+                "config": config,
+            }
+        )
         output = langchain_to_chat_message(response["messages"][-1])
         return output
     except openai.BadRequestError as e:
         # TODO: hack around a failed tool call by appending a bad tool result
         logger.warn("Failed to resume, appending a bad tool result")
-        tool_call_id = e.message.split("tool_call_ids did not have response messages: ")[1].split("\"")[0]
-        #logger.warn(await agent.aget_state(config))
-        response = await agent.ainvoke(**{
-            "input": {"messages": [ToolMessage(
-                content='Tool call failed, please try again',
-                id=uuid4(),
-                tool_call_id=tool_call_id,
-            )]},
-            "config": config,
-        })
+        tool_call_id = e.message.split("tool_call_ids did not have response messages: ")[1].split(
+            '"'
+        )[0]
+        # logger.warn(await agent.aget_state(config))
+        response = await agent.ainvoke(
+            **{
+                "input": {
+                    "messages": [
+                        ToolMessage(
+                            content="Tool call failed, please try again",
+                            id=uuid4(),
+                            tool_call_id=tool_call_id,
+                        )
+                    ]
+                },
+                "config": config,
+            }
+        )
         output = langchain_to_chat_message(response["messages"][-1])
         return output
 
-        #invoke(resume_input, agent_id)
+        # invoke(resume_input, agent_id)
         raise HTTPException(status_code=500, detail="Unexpected error")
     except Exception as e:
-        import traceback; traceback.print_exc()
+        import traceback
+
+        traceback.print_exc()
         logger.error(f"An exception occurred: {e}")
         raise HTTPException(status_code=500, detail="Unexpected error")
 
@@ -183,9 +196,10 @@ async def message_generator(
             # on_chain_end gets called a bunch of times in a graph execution
             # This filters out everything except for "graph node finished"
             and any(t.startswith("graph:step:") for t in event.get("tags", []))
-            and "messages" in event["data"]["output"]
+            and event.get("data", {}).get("output", {}) is not None
+            and "messages" in event.get("data", {}).get("output", {})
         ):
-            new_messages = event["data"]["output"]["messages"]
+            new_messages = event.get("data", {}).get("output", {}).get("messages", [])
 
         # Also yield intermediate messages from agents.utils.CustomData.adispatch().
         if event["event"] == "on_custom_event" and "custom_data_dispatch" in event.get("tags", []):
